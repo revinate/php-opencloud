@@ -1,6 +1,6 @@
 {
-    "name": "rackspace/php-opencloud",
-    "description": "PHP SDK for Rackspace/OpenStack APIs",
+    "name": "revinate/php-opencloud",
+    "description": "PHP SDK for Rackspace/OpenStack APIs as used at revinate",
     "keywords": ["rackspace", "openstack", "opencloud", "swift", "nova"],
     "type": "library",
     "license": "Apache-2.0",

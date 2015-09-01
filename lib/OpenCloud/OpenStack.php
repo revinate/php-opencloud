@@ -377,31 +377,46 @@ class OpenStack extends Client
 
     /**
      * Authenticate the tenant using the supplied credentials
+     * Use file caching of identity token to prevent hitting rate limit.
+     * http://docs.php-opencloud.com/en/latest/caching-creds.html?highlight=cach
      *
      * @return void
      * @throws AuthenticationError
      */
     public function authenticate()
     {
-        // OpenStack APIs will return a 401 if an expired X-Auth-Token is sent,
-        // so we need to reset the value before authenticating for another one.
-        $this->updateTokenHeader('');
-
-        $identity = IdentityService::factory($this);
-        $response = $identity->generateToken($this->getCredentials());
-
-        $body = Formatter::decode($response);
-
-        $this->setCatalog($body->access->serviceCatalog);
-        $this->setTokenObject($identity->resource('Token', $body->access->token));
-        $this->setUser($identity->resource('User', $body->access->user));
-
-        if (isset($body->access->token->tenant)) {
-            $this->setTenantObject($identity->resource('Tenant', $body->access->token->tenant));
+        $cacheFile = __DIR__ . '/.opencloud_token';
+        if (file_exists($cacheFile)) {
+            $identityData = unserialize(file_get_contents($cacheFile));
+            $this->importCredentials($identityData);
         }
 
-        // Set X-Auth-Token HTTP request header
-        $this->updateTokenHeader($this->getToken());
+        $identityToken = $this->getTokenObject();
+
+        //if file not found or token isn't present then authenticate and save credentials
+        if (! $identityToken || ($identityToken && $identityToken->hasExpired())) {
+            // OpenStack APIs will return a 401 if an expired X-Auth-Token is sent,
+            // so we need to reset the value before authenticating for another one.
+            $this->updateTokenHeader('');
+
+            $identity = IdentityService::factory($this);
+            $response = $identity->generateToken($this->getCredentials());
+
+            $body = Formatter::decode($response);
+
+            $this->setCatalog($body->access->serviceCatalog);
+            $this->setTokenObject($identity->resource('Token', $body->access->token));
+            $this->setUser($identity->resource('User', $body->access->user));
+
+            if (isset($body->access->token->tenant)) {
+                $this->setTenantObject($identity->resource('Tenant', $body->access->token->tenant));
+            }
+
+            // Set X-Auth-Token HTTP request header
+            $this->updateTokenHeader($this->getToken());
+
+            file_put_contents($cacheFile, serialize($this->exportCredentials()));
+        }
     }
 
     /**
